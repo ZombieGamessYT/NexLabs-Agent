@@ -1,0 +1,843 @@
+
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nexora Agent — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        nexora: {
+          50:  '#f0f4ff',
+          100: '#e0e9ff',
+          200: '#c2d3ff',
+          300: '#93b0ff',
+          400: '#6488ff',
+          500: '#3d5eff',
+          600: '#2440f5',
+          700: '#1a2fd1',
+          800: '#1827aa',
+          900: '#192586',
+          950: '#111661',
+        }
+      },
+      fontFamily: { sans: ['Inter','system-ui','sans-serif'] }
+    }
+  }
+}
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0f1117; }
+  ::-webkit-scrollbar-thumb { background: #3d5eff; border-radius: 3px; }
+  .sidebar-link { transition: all 0.2s ease; }
+  .sidebar-link:hover, .sidebar-link.active {
+    background: linear-gradient(90deg, rgba(61,94,255,0.25) 0%, transparent 100%);
+    border-left: 3px solid #3d5eff;
+    color: #93b0ff;
+  }
+  .card-glow { box-shadow: 0 0 30px rgba(61,94,255,0.1); }
+  .card-glow:hover { box-shadow: 0 0 40px rgba(61,94,255,0.25); transition: box-shadow 0.3s ease; }
+  .metric-card { background: linear-gradient(135deg, #151929 0%, #0d1117 100%); border: 1px solid #1e2a45; }
+  .gradient-text { background: linear-gradient(135deg, #6488ff, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .pulse-dot { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.5; transform:scale(1.3); } }
+  .page { display: none; }
+  .page.active { display: block; }
+  .login-page { display: none; }
+  .login-page.active { display: flex; }
+  .main-layout { display: none; }
+  .main-layout.active { display: flex; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .progress-bar { height: 4px; border-radius: 2px; background: #1e2a45; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+  .table-row:hover { background: rgba(61,94,255,0.06); }
+  .notification { animation: slideIn 0.3s ease; }
+  @keyframes slideIn { from{ transform: translateX(100%); opacity:0; } to{ transform:translateX(0); opacity:1; } }
+  .toggle-switch { position:relative; width:40px; height:22px; }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#1e2a45; border-radius:22px; transition:.3s; }
+  .toggle-slider:before { position:absolute; content:""; height:16px; width:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s; }
+  input:checked + .toggle-slider { background:#3d5eff; }
+  input:checked + .toggle-slider:before { transform:translateX(18px); }
+  .sidebar-collapsed .sidebar-label { display: none; }
+  .sidebar-collapsed { width: 64px !important; }
+  .sidebar-collapsed .brand-text { display: none; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:none; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .chart-container { position: relative; }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+<!-- ══════════════ LOGIN PAGE ══════════════ -->
+<div class="login-page active fixed inset-0 z-50 items-center justify-center" id="loginPage"
+  style="background: radial-gradient(ellipse at 60% 40%, #1a2fd144 0%, #0d1117 60%), #0d1117;">
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div style="position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(61,94,255,0.08),transparent 70%);top:-100px;right:-100px;"></div>
+    <div style="position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,0.06),transparent 70%);bottom:0;left:0;"></div>
+  </div>
+  <div class="relative w-full max-w-md mx-4">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center gap-3 mb-4">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#3d5eff,#a78bfa);display:flex;align-items:center;justify-content:center;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="text-3xl font-bold gradient-text">Nexora Agent</span>
+      </div>
+      <p class="text-gray-400 text-sm">Panel de Control Inteligente</p>
+    </div>
+    <!-- Card -->
+    <div class="rounded-2xl p-8 card-glow" style="background:#111827;border:1px solid #1e2a45;">
+      <h2 class="text-xl font-semibold text-white mb-1">Bienvenido de vuelta</h2>
+      <p class="text-gray-400 text-sm mb-6">Inicia sesión en tu cuenta</p>
+      <div id="loginError" class="hidden mb-4 p-3 rounded-lg text-red-400 text-sm" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);">
+        Credenciales incorrectas. Usa: admin@nexora.ai / nexora2025
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1.5">Email</label>
+          <input id="loginEmail" type="email" placeholder="admin@nexora.ai" value="admin@nexora.ai"
+            class="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-nexora-500 transition"
+            style="background:#0d1117;border:1px solid #1e2a45;"/>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1.5">Contraseña</label>
+          <input id="loginPass" type="password" placeholder="••••••••" value="nexora2025"
+            class="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-nexora-500 transition"
+            style="background:#0d1117;border:1px solid #1e2a45;"/>
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked class="accent-nexora-500"/> 
+            <span class="text-sm text-gray-400">Recuérdame</span>
+          </label>
+          <a href="#" class="text-sm text-nexora-400 hover:text-nexora-300">¿Olvidaste tu contraseña?</a>
+        </div>
+        <button onclick="doLogin()" class="w-full py-3 rounded-xl font-semibold text-white text-sm transition-all hover:opacity-90 active:scale-98"
+          style="background:linear-gradient(135deg,#3d5eff,#6366f1);">
+          Iniciar Sesión
+        </button>
+      </div>
+      <p class="text-center text-xs text-gray-600 mt-6">Demo: admin@nexora.ai / nexora2025</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN LAYOUT ══════════════ -->
+<div class="main-layout h-screen overflow-hidden" id="mainLayout" style="background:#0d1117;">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="flex flex-col h-full transition-all duration-300" style="width:240px;min-width:240px;background:#0a0e1a;border-right:1px solid #1e2a45;">
+    <!-- Brand -->
+    <div class="flex items-center gap-3 px-5 py-5 border-b" style="border-color:#1e2a45;">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#3d5eff,#a78bfa);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="brand-text overflow-hidden">
+        <div class="text-sm font-bold text-white">Nexora Agent</div>
+        <div class="text-xs text-gray-500">v2.1.0 · Pro</div>
+      </div>
+    </div>
+    <!-- Nav -->
+    <nav class="flex-1 py-4 overflow-y-auto px-2">
+      <div class="text-xs text-gray-600 font-semibold px-3 mb-2 uppercase tracking-wider sidebar-label">Principal</div>
+      <a href="#" onclick="showPage('overview')" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-300 text-sm font-medium" data-page="overview">
+        <svg class="w-4.5 h-4.5 flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span class="sidebar-label">Resumen</span>
+      </a>
+      <a href="#" onclick="showPage('agents')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-400 text-sm font-medium" data-page="agents">
+        <svg class="flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span class="sidebar-label">Agentes</span>
+        <span class="ml-auto badge sidebar-label" style="background:rgba(61,94,255,0.2);color:#93b0ff;">12</span>
+      </a>
+      <a href="#" onclick="showPage('analytics')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-400 text-sm font-medium" data-page="analytics">
+        <svg class="flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span class="sidebar-label">Analíticas</span>
+      </a>
+      <a href="#" onclick="showPage('logs')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-400 text-sm font-medium" data-page="logs">
+        <svg class="flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+        <span class="sidebar-label">Logs</span>
+        <span class="ml-auto badge sidebar-label" style="background:rgba(239,68,68,0.15);color:#f87171;">3</span>
+      </a>
+      <a href="#" onclick="showPage('reports')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-400 text-sm font-medium" data-page="reports">
+        <svg class="flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+        <span class="sidebar-label">Reportes</span>
+      </a>
+      <div class="text-xs text-gray-600 font-semibold px-3 mt-4 mb-2 uppercase tracking-wider sidebar-label">Configuración</div>
+      <a href="#" onclick="showPage('admin')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-400 text-sm font-medium" data-page="admin">
+        <svg class="flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="sidebar-label">Administración</span>
+      </a>
+      <a href="#" onclick="showPage('settings')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-gray-400 text-sm font-medium" data-page="settings">
+        <svg class="flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="sidebar-label">Ajustes</span>
+      </a>
+    </nav>
+    <!-- User -->
+    <div class="px-4 py-4 border-t" style="border-color:#1e2a45;">
+      <div class="flex items-center gap-3">
+        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3d5eff,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:white;flex-shrink:0;">A</div>
+        <div class="sidebar-label overflow-hidden flex-1">
+          <div class="text-sm font-medium text-white truncate">Admin Nexora</div>
+          <div class="text-xs text-gray-500 truncate">admin@nexora.ai</div>
+        </div>
+        <button onclick="doLogout()" class="sidebar-label text-gray-500 hover:text-red-400 transition ml-auto">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 flex flex-col h-full overflow-hidden">
+    <!-- TOPBAR -->
+    <header class="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style="background:#0a0e1a;border-color:#1e2a45;">
+      <div class="flex items-center gap-4">
+        <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white transition">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Buscar agentes, logs, reportes..." class="pl-9 pr-4 py-2 text-sm text-gray-300 rounded-lg outline-none focus:ring-1 focus:ring-nexora-500" style="background:#111827;border:1px solid #1e2a45;width:280px;"/>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#4ade80;">
+          <span class="pulse-dot w-1.5 h-1.5 rounded-full" style="background:#4ade80;display:inline-block;"></span> Sistema Operativo
+        </div>
+        <button class="relative text-gray-400 hover:text-white transition p-2 rounded-lg" style="background:#111827;border:1px solid #1e2a45;" onclick="showNotif()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center" style="background:#ef4444;font-size:9px;">3</span>
+        </button>
+        <button onclick="toggleDarkMode()" class="text-gray-400 hover:text-white transition p-2 rounded-lg" style="background:#111827;border:1px solid #1e2a45;" title="Cambiar tema">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3d5eff,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:white;cursor:pointer;">A</div>
+      </div>
+    </header>
+
+    <!-- PAGES CONTAINER -->
+    <div class="flex-1 overflow-y-auto" style="background:#0d1117;">
+
+      <!-- ═══ PAGE: OVERVIEW ═══ -->
+      <div class="page active p-6" id="page-overview">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-white">Resumen General</h1>
+            <p class="text-sm text-gray-500 mt-0.5">Bienvenido, Admin · <span id="currentDate"></span></p>
+          </div>
+          <button onclick="exportPDF()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition hover:opacity-90" style="background:linear-gradient(135deg,#3d5eff,#6366f1);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar PDF
+          </button>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="metric-card rounded-xl p-4 card-glow">
+            <div class="flex items-center justify-between mb-3">
+              <div class="p-2 rounded-lg" style="background:rgba(61,94,255,0.15);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6488ff" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+              <span class="text-xs text-green-400 font-medium">+12%</span>
+            </div>
+            <div class="text-2xl font-bold text-white">12</div>
+            <div class="text-xs text-gray-500 mt-1">Agentes Activos</div>
+            <div class="progress-bar mt-3"><div class="progress-fill" style="width:72%;background:linear-gradient(90deg,#3d5eff,#6366f1);"></div></div>
+          </div>
+          <div class="metric-card rounded-xl p-4 card-glow">
+            <div class="flex items-center justify-between mb-3">
+              <div class="p-2 rounded-lg" style="background:rgba(167,139,250,0.15);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <span class="text-xs text-green-400 font-medium">+8.4%</span>
+            </div>
+            <div class="text-2xl font-bold text-white">98.7%</div>
+            <div class="text-xs text-gray-500 mt-1">Uptime del Sistema</div>
+            <div class="progress-bar mt-3"><div class="progress-fill" style="width:98%;background:linear-gradient(90deg,#a78bfa,#ec4899);"></div></div>
+          </div>
+          <div class="metric-card rounded-xl p-4 card-glow">
+            <div class="flex items-center justify-between mb-3">
+              <div class="p-2 rounded-lg" style="background:rgba(34,197,94,0.15);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <span class="text-xs text-green-400 font-medium">+24.5%</span>
+            </div>
+            <div class="text-2xl font-bold text-white">1,847</div>
+            <div class="text-xs text-gray-500 mt-1">Tareas Completadas</div>
+            <div class="progress-bar mt-3"><div class="progress-fill" style="width:85%;background:linear-gradient(90deg,#22c55e,#16a34a);"></div></div>
+          </div>
+          <div class="metric-card rounded-xl p-4 card-glow">
+            <div class="flex items-center justify-between mb-3">
+              <div class="p-2 rounded-lg" style="background:rgba(251,191,36,0.15);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <span class="text-xs text-red-400 font-medium">-2.1%</span>
+            </div>
+            <div class="text-2xl font-bold text-white">1.24s</div>
+            <div class="text-xs text-gray-500 mt-1">Latencia Promedio</div>
+            <div class="progress-bar mt-3"><div class="progress-fill" style="width:45%;background:linear-gradient(90deg,#f59e0b,#ef4444);"></div></div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          <div class="lg:col-span-2 rounded-xl p-5 card-glow" style="background:#111827;border:1px solid #1e2a45;">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-sm font-semibold text-white">Actividad de Agentes</h3>
+                <p class="text-xs text-gray-500">Últimos 7 días</p>
+              </div>
+              <div class="flex gap-2">
+                <span class="text-xs text-gray-400 flex items-center gap-1"><span style="width:8px;height:8px;border-radius:50%;background:#3d5eff;display:inline-block;"></span>Tareas</span>
+                <span class="text-xs text-gray-400 flex items-center gap-1"><span style="width:8px;height:8px;border-radius:50%;background:#a78bfa;display:inline-block;"></span>Errores</span>
+              </div>
+            </div>
+            <div class="chart-container" style="height:200px;"><canvas id="activityChart"></canvas></div>
+          </div>
+          <div class="rounded-xl p-5 card-glow" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-1">Estado de Agentes</h3>
+            <p class="text-xs text-gray-500 mb-4">Distribución actual</p>
+            <div class="chart-container" style="height:160px;"><canvas id="statusChart"></canvas></div>
+            <div class="grid grid-cols-3 gap-2 mt-4">
+              <div class="text-center"><div class="text-sm font-bold text-green-400">8</div><div class="text-xs text-gray-500">Activos</div></div>
+              <div class="text-center"><div class="text-sm font-bold text-yellow-400">3</div><div class="text-xs text-gray-500">Standby</div></div>
+              <div class="text-center"><div class="text-sm font-bold text-red-400">1</div><div class="text-xs text-gray-500">Error</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity + Top Agents -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">Actividad Reciente</h3>
+            <div class="space-y-3" id="recentActivity"></div>
+          </div>
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">Top Agentes por Rendimiento</h3>
+            <div class="space-y-3" id="topAgents"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: AGENTS ═══ -->
+      <div class="page p-6" id="page-agents">
+        <div class="flex items-center justify-between mb-6">
+          <div><h1 class="text-xl font-bold text-white">Gestión de Agentes</h1><p class="text-sm text-gray-500 mt-0.5">12 agentes registrados · 8 activos</p></div>
+          <button onclick="openNewAgent()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style="background:linear-gradient(135deg,#3d5eff,#6366f1);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo Agente
+          </button>
+        </div>
+        <!-- Filter bar -->
+        <div class="flex gap-3 mb-4">
+          <button onclick="filterAgents('all')" class="px-4 py-2 rounded-lg text-sm font-medium text-white" style="background:#3d5eff;" id="filter-all">Todos (12)</button>
+          <button onclick="filterAgents('active')" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white" style="background:#111827;border:1px solid #1e2a45;" id="filter-active">Activos (8)</button>
+          <button onclick="filterAgents('standby')" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white" style="background:#111827;border:1px solid #1e2a45;" id="filter-standby">Standby (3)</button>
+          <button onclick="filterAgents('error')" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white" style="background:#111827;border:1px solid #1e2a45;" id="filter-error">Error (1)</button>
+        </div>
+        <div class="rounded-xl overflow-hidden" style="background:#111827;border:1px solid #1e2a45;">
+          <table class="w-full text-sm">
+            <thead><tr style="border-bottom:1px solid #1e2a45;">
+              <th class="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wider">Agente</th>
+              <th class="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wider">Estado</th>
+              <th class="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wider">Tareas</th>
+              <th class="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wider">Éxito</th>
+              <th class="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wider">Latencia</th>
+              <th class="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wider">Acciones</th>
+            </tr></thead>
+            <tbody id="agentsTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: ANALYTICS ═══ -->
+      <div class="page p-6" id="page-analytics">
+        <div class="flex items-center justify-between mb-6">
+          <div><h1 class="text-xl font-bold text-white">Analíticas Avanzadas</h1><p class="text-sm text-gray-500 mt-0.5">Métricas de rendimiento del sistema</p></div>
+          <select class="px-3 py-2 rounded-lg text-sm text-gray-300 outline-none" style="background:#111827;border:1px solid #1e2a45;">
+            <option>Últimos 30 días</option><option>Últimos 7 días</option><option>Últimas 24h</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">Tareas por Categoría</h3>
+            <div style="height:220px;"><canvas id="categoryChart"></canvas></div>
+          </div>
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">Tendencia de Rendimiento</h3>
+            <div style="height:220px;"><canvas id="performanceChart"></canvas></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="rounded-xl p-4" style="background:#111827;border:1px solid #1e2a45;">
+            <div class="text-xs text-gray-500 mb-1">CPU Promedio</div>
+            <div class="text-xl font-bold text-white">34.2%</div>
+            <div class="progress-bar mt-2"><div class="progress-fill" style="width:34%;background:#3d5eff;"></div></div>
+          </div>
+          <div class="rounded-xl p-4" style="background:#111827;border:1px solid #1e2a45;">
+            <div class="text-xs text-gray-500 mb-1">Memoria RAM</div>
+            <div class="text-xl font-bold text-white">58.7%</div>
+            <div class="progress-bar mt-2"><div class="progress-fill" style="width:58%;background:#a78bfa;"></div></div>
+          </div>
+          <div class="rounded-xl p-4" style="background:#111827;border:1px solid #1e2a45;">
+            <div class="text-xs text-gray-500 mb-1">Peticiones/min</div>
+            <div class="text-xl font-bold text-white">247</div>
+            <div class="progress-bar mt-2"><div class="progress-fill" style="width:62%;background:#22c55e;"></div></div>
+          </div>
+          <div class="rounded-xl p-4" style="background:#111827;border:1px solid #1e2a45;">
+            <div class="text-xs text-gray-500 mb-1">Tasa de Error</div>
+            <div class="text-xl font-bold text-white">0.3%</div>
+            <div class="progress-bar mt-2"><div class="progress-fill" style="width:3%;background:#ef4444;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: LOGS ═══ -->
+      <div class="page p-6" id="page-logs">
+        <div class="flex items-center justify-between mb-6">
+          <div><h1 class="text-xl font-bold text-white">Logs del Sistema</h1><p class="text-sm text-gray-500 mt-0.5">Registros en tiempo real · 3 errores activos</p></div>
+          <div class="flex gap-2">
+            <button class="px-3 py-2 rounded-lg text-sm text-gray-400" style="background:#111827;border:1px solid #1e2a45;">Filtrar</button>
+            <button onclick="exportLogs()" class="px-3 py-2 rounded-lg text-sm text-white" style="background:#3d5eff;">Exportar</button>
+          </div>
+        </div>
+        <div class="rounded-xl overflow-hidden" style="background:#0a0e1a;border:1px solid #1e2a45;font-family:monospace;">
+          <div class="px-4 py-2 text-xs flex gap-4 border-b" style="background:#111827;border-color:#1e2a45;">
+            <span class="text-gray-400">Nivel:</span>
+            <label class="cursor-pointer flex items-center gap-1.5"><input type="checkbox" checked class="accent-nexora-500"/> <span class="text-green-400">INFO</span></label>
+            <label class="cursor-pointer flex items-center gap-1.5"><input type="checkbox" checked class="accent-nexora-500"/> <span class="text-yellow-400">WARN</span></label>
+            <label class="cursor-pointer flex items-center gap-1.5"><input type="checkbox" checked class="accent-nexora-500"/> <span class="text-red-400">ERROR</span></label>
+          </div>
+          <div class="p-4 space-y-1.5 text-xs overflow-y-auto" style="max-height:500px;" id="logsContainer"></div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: REPORTS ═══ -->
+      <div class="page p-6" id="page-reports">
+        <div class="flex items-center justify-between mb-6">
+          <div><h1 class="text-xl font-bold text-white">Reportes</h1><p class="text-sm text-gray-500 mt-0.5">Genera y exporta reportes del sistema</p></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <div class="rounded-xl p-5 cursor-pointer hover:border-nexora-500 transition card-glow" style="background:#111827;border:1px solid #1e2a45;" onclick="generateReport('performance')">
+            <div class="p-3 rounded-xl w-fit mb-3" style="background:rgba(61,94,255,0.15);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6488ff" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="font-semibold text-white mb-1">Reporte de Rendimiento</div>
+            <div class="text-xs text-gray-500">Métricas detalladas de todos los agentes</div>
+            <div class="mt-4 text-xs text-nexora-400">Generar PDF →</div>
+          </div>
+          <div class="rounded-xl p-5 cursor-pointer hover:border-nexora-500 transition card-glow" style="background:#111827;border:1px solid #1e2a45;" onclick="generateReport('errors')">
+            <div class="p-3 rounded-xl w-fit mb-3" style="background:rgba(239,68,68,0.15);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <div class="font-semibold text-white mb-1">Reporte de Errores</div>
+            <div class="text-xs text-gray-500">Análisis de fallos y excepciones</div>
+            <div class="mt-4 text-xs text-red-400">Generar PDF →</div>
+          </div>
+          <div class="rounded-xl p-5 cursor-pointer hover:border-nexora-500 transition card-glow" style="background:#111827;border:1px solid #1e2a45;" onclick="generateReport('usage')">
+            <div class="p-3 rounded-xl w-fit mb-3" style="background:rgba(167,139,250,0.15);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+            <div class="font-semibold text-white mb-1">Reporte de Uso</div>
+            <div class="text-xs text-gray-500">Estadísticas de consumo de recursos</div>
+            <div class="mt-4 text-xs text-purple-400">Generar PDF →</div>
+          </div>
+        </div>
+        <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+          <h3 class="text-sm font-semibold text-white mb-4">Reportes Generados Recientemente</h3>
+          <div id="reportsList" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: ADMIN ═══ -->
+      <div class="page p-6" id="page-admin">
+        <div class="mb-6"><h1 class="text-xl font-bold text-white">Panel de Administración</h1><p class="text-sm text-gray-500 mt-0.5">Gestión de usuarios y permisos</p></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-semibold text-white">Usuarios del Sistema</h3>
+              <button class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#3d5eff;">+ Agregar</button>
+            </div>
+            <div class="space-y-3" id="usersList"></div>
+          </div>
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">Permisos por Rol</h3>
+            <div class="space-y-3">
+              <div class="p-3 rounded-lg" style="background:#0d1117;border:1px solid #1e2a45;">
+                <div class="flex justify-between items-center mb-2"><span class="text-sm font-medium text-white">Super Admin</span><span class="badge" style="background:rgba(239,68,68,0.15);color:#f87171;">Full Access</span></div>
+                <div class="flex flex-wrap gap-1">
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Agentes</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Usuarios</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Logs</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Configs</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Reportes</span>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg" style="background:#0d1117;border:1px solid #1e2a45;">
+                <div class="flex justify-between items-center mb-2"><span class="text-sm font-medium text-white">Operador</span><span class="badge" style="background:rgba(61,94,255,0.15);color:#93b0ff;">Estándar</span></div>
+                <div class="flex flex-wrap gap-1">
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Agentes</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Logs</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Reportes</span>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg" style="background:#0d1117;border:1px solid #1e2a45;">
+                <div class="flex justify-between items-center mb-2"><span class="text-sm font-medium text-white">Viewer</span><span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;">Solo Lectura</span></div>
+                <div class="flex flex-wrap gap-1">
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Logs</span>
+                  <span class="badge" style="background:#1e2a45;color:#94a3b8;">Reportes</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PAGE: SETTINGS ═══ -->
+      <div class="page p-6" id="page-settings">
+        <div class="mb-6"><h1 class="text-xl font-bold text-white">Configuración del Sistema</h1><p class="text-sm text-gray-500 mt-0.5">Personaliza Nexora Agent</p></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">General</h3>
+            <div class="space-y-4">
+              <div class="flex items-center justify-between py-2 border-b" style="border-color:#1e2a45;">
+                <div><div class="text-sm text-white">Modo Oscuro</div><div class="text-xs text-gray-500">Tema visual del dashboard</div></div>
+                <label class="toggle-switch"><input type="checkbox" checked id="darkToggle" onchange="toggleDarkMode()"/><span class="toggle-slider"></span></label>
+              </div>
+              <div class="flex items-center justify-between py-2 border-b" style="border-color:#1e2a45;">
+                <div><div class="text-sm text-white">Notificaciones</div><div class="text-xs text-gray-500">Alertas en tiempo real</div></div>
+                <label class="toggle-switch"><input type="checkbox" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div class="flex items-center justify-between py-2 border-b" style="border-color:#1e2a45;">
+                <div><div class="text-sm text-white">Auto-refresh</div><div class="text-xs text-gray-500">Actualizar datos automáticamente</div></div>
+                <label class="toggle-switch"><input type="checkbox" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div class="flex items-center justify-between py-2">
+                <div><div class="text-sm text-white">Exportación Automática</div><div class="text-xs text-gray-500">Generar reportes diarios</div></div>
+                <label class="toggle-switch"><input type="checkbox"/><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-xl p-5" style="background:#111827;border:1px solid #1e2a45;">
+            <h3 class="text-sm font-semibold text-white mb-4">API & Integraciones</h3>
+            <div class="space-y-3">
+              <div><label class="text-xs text-gray-500 block mb-1">API Base URL</label>
+              <input value="https://api.nexora.ai/v1" class="w-full px-3 py-2 rounded-lg text-sm text-gray-300 outline-none" style="background:#0d1117;border:1px solid #1e2a45;"/></div>
+              <div><label class="text-xs text-gray-500 block mb-1">API Key</label>
+              <input type="password" value="nxr_live_••••••••••••••••" class="w-full px-3 py-2 rounded-lg text-sm text-gray-300 outline-none" style="background:#0d1117;border:1px solid #1e2a45;"/></div>
+              <div><label class="text-xs text-gray-500 block mb-1">Webhook URL</label>
+              <input value="https://hooks.nexora.ai/events" class="w-full px-3 py-2 rounded-lg text-sm text-gray-300 outline-none" style="background:#0d1117;border:1px solid #1e2a45;"/></div>
+              <button class="w-full py-2 rounded-lg text-sm font-medium text-white mt-2" style="background:linear-gradient(135deg,#3d5eff,#6366f1);">Guardar Cambios</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end pages container -->
+  </main>
+</div><!-- end main layout -->
+
+<!-- MODAL: New Agent -->
+<div class="modal-overlay" id="newAgentModal">
+  <div class="rounded-2xl p-6 w-full max-w-md mx-4" style="background:#111827;border:1px solid #1e2a45;">
+    <h3 class="text-lg font-semibold text-white mb-4">Nuevo Agente</h3>
+    <div class="space-y-3">
+      <div><label class="text-xs text-gray-500 block mb-1">Nombre del Agente *</label>
+      <input id="newAgentName" placeholder="ej: DataBot-Alpha" class="w-full px-3 py-2 rounded-lg text-sm text-white outline-none" style="background:#0d1117;border:1px solid #1e2a45;"/></div>
+      <div><label class="text-xs text-gray-500 block mb-1">Tipo</label>
+      <select class="w-full px-3 py-2 rounded-lg text-sm text-white outline-none" style="background:#0d1117;border:1px solid #1e2a45;">
+        <option>Análisis de Datos</option><option>Automatización</option><option>Monitoreo</option><option>Reportes</option>
+      </select></div>
+      <div><label class="text-xs text-gray-500 block mb-1">Descripción</label>
+      <textarea rows="2" placeholder="Describe las capacidades del agente..." class="w-full px-3 py-2 rounded-lg text-sm text-white outline-none resize-none" style="background:#0d1117;border:1px solid #1e2a45;"></textarea></div>
+    </div>
+    <div class="flex gap-3 mt-5">
+      <button onclick="closeModal()" class="flex-1 py-2 rounded-lg text-sm text-gray-400" style="background:#0d1117;border:1px solid #1e2a45;">Cancelar</button>
+      <button onclick="createAgent()" class="flex-1 py-2 rounded-lg text-sm text-white font-medium" style="background:linear-gradient(135deg,#3d5eff,#6366f1);">Crear Agente</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION TOAST -->
+<div id="toast" class="fixed top-4 right-4 z-50 hidden notification">
+  <div class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm" style="background:#111827;border:1px solid #1e2a45;max-width:320px;" id="toastContent"></div>
+</div>
+
+<script>
+// ══════════════ DATA ══════════════
+const agents = [
+  { id: 1, name: 'Alpha-7 Analyzer', type: 'Análisis', status: 'active', tasks: 342, success: 99.1, latency: '0.8s', color: '#4ade80' },
+  { id: 2, name: 'BetaBot Crawler', type: 'Scraping', status: 'active', tasks: 218, success: 97.3, latency: '1.2s', color: '#4ade80' },
+  { id: 3, name: 'Gamma Reporter', type: 'Reportes', status: 'active', tasks: 156, success: 98.7, latency: '0.5s', color: '#4ade80' },
+  { id: 4, name: 'Delta Monitor', type: 'Monitoreo', status: 'active', tasks: 891, success: 99.9, latency: '0.3s', color: '#4ade80' },
+  { id: 5, name: 'Epsilon Classifier', type: 'ML', status: 'active', tasks: 445, success: 95.2, latency: '1.8s', color: '#4ade80' },
+  { id: 6, name: 'Zeta Integrator', type: 'API', status: 'active', tasks: 203, success: 96.8, latency: '0.9s', color: '#4ade80' },
+  { id: 7, name: 'Eta DataPipe', type: 'ETL', status: 'active', tasks: 178, success: 98.1, latency: '2.1s', color: '#4ade80' },
+  { id: 8, name: 'Theta Notifier', type: 'Alertas', status: 'active', tasks: 534, success: 99.5, latency: '0.2s', color: '#4ade80' },
+  { id: 9, name: 'Iota Scheduler', type: 'Crons', status: 'standby', tasks: 89, success: 94.4, latency: '1.5s', color: '#fbbf24' },
+  { id: 10, name: 'Kappa Translator', type: 'NLP', status: 'standby', tasks: 122, success: 91.2, latency: '2.4s', color: '#fbbf24' },
+  { id: 11, name: 'Lambda Archiver', type: 'Storage', status: 'standby', tasks: 67, success: 97.0, latency: '3.1s', color: '#fbbf24' },
+  { id: 12, name: 'Mu ErrorHandler', type: 'Debug', status: 'error', tasks: 23, success: 78.3, latency: '5.2s', color: '#f87171' },
+];
+const logs = [
+  { time: '14:32:01', level: 'INFO', agent: 'Delta Monitor', msg: 'Health check passed — all systems nominal' },
+  { time: '14:31:58', level: 'INFO', agent: 'Theta Notifier', msg: 'Alert sent to 3 subscribers via webhook' },
+  { time: '14:31:45', level: 'WARN', agent: 'Kappa Translator', msg: 'Token limit approaching 80% — consider splitting payload' },
+  { time: '14:31:30', level: 'ERROR', agent: 'Mu ErrorHandler', msg: 'Connection timeout after 5000ms — retrying (2/3)' },
+  { time: '14:31:12', level: 'INFO', agent: 'Alpha-7 Analyzer', msg: 'Batch analysis complete — 128 records processed' },
+  { time: '14:30:55', level: 'ERROR', agent: 'Mu ErrorHandler', msg: 'Max retries exceeded — task marked as failed' },
+  { time: '14:30:40', level: 'INFO', agent: 'Gamma Reporter', msg: 'Monthly report generated — 24 pages, exported to S3' },
+  { time: '14:30:22', level: 'WARN', agent: 'Epsilon Classifier', msg: 'Model confidence below threshold: 0.72 < 0.80' },
+  { time: '14:30:05', level: 'INFO', agent: 'BetaBot Crawler', msg: 'Crawled 1,204 URLs — 18 new items found' },
+  { time: '14:29:48', level: 'ERROR', agent: 'Mu ErrorHandler', msg: 'Database connection pool exhausted — scaling up' },
+  { time: '14:29:30', level: 'INFO', agent: 'Zeta Integrator', msg: 'Stripe webhook processed — payment confirmed #8821' },
+  { time: '14:29:10', level: 'INFO', agent: 'Eta DataPipe', msg: 'ETL pipeline completed — 45,000 rows migrated' },
+];
+const users = [
+  { name: 'Admin Nexora', email: 'admin@nexora.ai', role: 'Super Admin', avatar: 'A', color: '#3d5eff', active: true },
+  { name: 'María González', email: 'maria@nexora.ai', role: 'Operador', avatar: 'M', color: '#a78bfa', active: true },
+  { name: 'Carlos Ruiz', email: 'carlos@nexora.ai', role: 'Operador', avatar: 'C', color: '#22c55e', active: true },
+  { name: 'Ana Martínez', email: 'ana@nexora.ai', role: 'Viewer', avatar: 'A', color: '#f59e0b', active: false },
+];
+
+// ══════════════ AUTH ══════════════
+let isLoggedIn = false;
+function doLogin() {
+  const e = document.getElementById('loginEmail').value;
+  const p = document.getElementById('loginPass').value;
+  if (e === 'admin@nexora.ai' && p === 'nexora2025') {
+    document.getElementById('loginPage').classList.remove('active');
+    document.getElementById('mainLayout').classList.add('active');
+    isLoggedIn = true;
+    initDashboard();
+  } else {
+    document.getElementById('loginError').classList.remove('hidden');
+  }
+}
+document.getElementById('loginEmail').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+function doLogout() {
+  document.getElementById('mainLayout').classList.remove('active');
+  document.getElementById('loginPage').classList.add('active');
+  isLoggedIn = false;
+}
+
+// ══════════════ NAVIGATION ══════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`[data-page="${name}"]`)?.classList.add('active');
+  if (name === 'analytics') initAnalyticsCharts();
+}
+
+// ══════════════ SIDEBAR TOGGLE ══════════════
+let sidebarCollapsed = false;
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sidebarCollapsed = !sidebarCollapsed;
+  if (sidebarCollapsed) { sb.style.width='64px'; sb.style.minWidth='64px'; }
+  else { sb.style.width='240px'; sb.style.minWidth='240px'; }
+  sb.querySelectorAll('.sidebar-label, .brand-text').forEach(el => {
+    el.style.display = sidebarCollapsed ? 'none' : '';
+  });
+}
+
+// ══════════════ DARK MODE ══════════════
+let dark = true;
+function toggleDarkMode() {
+  dark = !dark;
+  document.documentElement.classList.toggle('dark', dark);
+}
+
+// ══════════════ CHARTS ══════════════
+let chartsInited = false;
+function initCharts() {
+  if (chartsInited) return;
+  chartsInited = true;
+  const gridColor = 'rgba(255,255,255,0.04)';
+  const tickColor = '#4b5563';
+  const days = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  // Activity Chart
+  new Chart(document.getElementById('activityChart'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [
+        { label:'Tareas', data:[210,285,198,340,265,180,370], borderColor:'#3d5eff', backgroundColor:'rgba(61,94,255,0.08)', fill:true, tension:0.4, pointBackgroundColor:'#3d5eff', pointRadius:4 },
+        { label:'Errores', data:[3,7,2,5,4,1,2], borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,0.05)', fill:true, tension:0.4, pointBackgroundColor:'#a78bfa', pointRadius:4 }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:gridColor},ticks:{color:tickColor,font:{size:11}}}, y:{grid:{color:gridColor},ticks:{color:tickColor,font:{size:11}}} } }
+  });
+  // Status Donut
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels:['Activos','Standby','Error'],
+      datasets:[{ data:[8,3,1], backgroundColor:['#3d5eff','#f59e0b','#ef4444'], borderWidth:0, hoverOffset:4 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'70%' }
+  });
+}
+function initAnalyticsCharts() {
+  // Category Bar
+  const ctx1 = document.getElementById('categoryChart');
+  if (!ctx1._chartjs) {
+    new Chart(ctx1, {
+      type:'bar',
+      data:{ labels:['Análisis','Monitoreo','Reportes','ETL','NLP','API'], datasets:[{ label:'Tareas', data:[342,891,156,178,122,203], backgroundColor:'rgba(61,94,255,0.7)', borderRadius:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4b5563',font:{size:11}}}, y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4b5563',font:{size:11}}} } }
+    });
+  }
+  // Performance Line
+  const ctx2 = document.getElementById('performanceChart');
+  if (!ctx2._chartjs) {
+    const months = ['Ene','Feb','Mar','Abr','May'];
+    new Chart(ctx2, {
+      type:'line',
+      data:{ labels:months, datasets:[{ label:'% Éxito', data:[94.2,95.8,96.1,97.4,98.7], borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.08)', fill:true, tension:0.4, pointBackgroundColor:'#22c55e', pointRadius:4 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4b5563',font:{size:11}}}, y:{min:90,max:100,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4b5563',font:{size:11}}} } }
+    });
+  }
+}
+
+// ══════════════ RENDER DATA ══════════════
+function renderRecentActivity() {
+  const events = [
+    { icon:'✅', text:'Alpha-7 completó análisis batch', time:'hace 1 min', color:'#4ade80' },
+    { icon:'⚠️', text:'Kappa acercándose al límite de tokens', time:'hace 2 min', color:'#fbbf24' },
+    { icon:'❌', text:'Mu ErrorHandler falló — 3 reintentos', time:'hace 3 min', color:'#f87171' },
+    { icon:'📊', text:'Gamma generó reporte mensual', time:'hace 5 min', color:'#93b0ff' },
+    { icon:'🔔', text:'Theta envió 3 alertas por webhook', time:'hace 6 min', color:'#a78bfa' },
+  ];
+  document.getElementById('recentActivity').innerHTML = events.map(e => `
+    <div class="flex items-start gap-3">
+      <span class="text-base">${e.icon}</span>
+      <div class="flex-1"><div class="text-xs text-gray-300">${e.text}</div><div class="text-xs text-gray-600 mt-0.5">${e.time}</div></div>
+    </div>`).join('');
+}
+function renderTopAgents() {
+  const top = [...agents].sort((a,b) => b.success-a.success).slice(0,5);
+  document.getElementById('topAgents').innerHTML = top.map((a,i) => `
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-bold text-gray-600">${i+1}</span>
+      <div style="width:28px;height:28px;border-radius:8px;background:rgba(61,94,255,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#93b0ff;">${a.name.charAt(0)}</div>
+      <div class="flex-1"><div class="text-xs text-gray-300 font-medium">${a.name}</div><div class="text-xs text-gray-600">${a.type}</div></div>
+      <span class="text-xs font-semibold" style="color:#4ade80;">${a.success}%</span>
+    </div>`).join('');
+}
+function renderAgentsTable(filter='all') {
+  const filtered = filter==='all' ? agents : agents.filter(a=>a.status===filter);
+  const statusMap = { active:['Activo','rgba(34,197,94,0.15)','#4ade80'], standby:['Standby','rgba(251,191,36,0.15)','#fbbf24'], error:['Error','rgba(239,68,68,0.15)','#f87171'] };
+  document.getElementById('agentsTable').innerHTML = filtered.map(a => {
+    const [label,bg,color] = statusMap[a.status];
+    return `<tr class="table-row border-b" style="border-color:#1e2a45;">
+      <td class="px-4 py-3"><div class="flex items-center gap-3">
+        <div style="width:30px;height:30px;border-radius:8px;background:rgba(61,94,255,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#93b0ff;">${a.name.charAt(0)}</div>
+        <div><div class="text-sm text-white font-medium">${a.name}</div><div class="text-xs text-gray-500">${a.type}</div></div>
+      </div></td>
+      <td class="px-4 py-3"><span class="badge" style="background:${bg};color:${color};">${label}</span></td>
+      <td class="px-4 py-3 text-sm text-gray-300">${a.tasks.toLocaleString()}</td>
+      <td class="px-4 py-3"><div class="flex items-center gap-2"><span class="text-sm font-medium" style="color:${a.success>95?'#4ade80':a.success>90?'#fbbf24':'#f87171'}">${a.success}%</span></div></td>
+      <td class="px-4 py-3 text-sm text-gray-400">${a.latency}</td>
+      <td class="px-4 py-3"><div class="flex gap-2">
+        <button class="text-xs px-2 py-1 rounded text-nexora-400 hover:text-white" style="background:rgba(61,94,255,0.1);">Ver</button>
+        <button class="text-xs px-2 py-1 rounded text-gray-400 hover:text-white" style="background:#1e2a45;">Config</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function filterAgents(f) {
+  ['all','active','standby','error'].forEach(id => {
+    const btn = document.getElementById('filter-'+id);
+    btn.style.background = f===id ? '#3d5eff' : '#111827';
+    btn.style.color = f===id ? '#fff' : '#9ca3af';
+  });
+  renderAgentsTable(f);
+}
+function renderLogs() {
+  const colors = { INFO:'#4ade80', WARN:'#fbbf24', ERROR:'#f87171' };
+  document.getElementById('logsContainer').innerHTML = logs.map(l => `
+    <div class="flex gap-3 items-start">
+      <span class="text-gray-600 flex-shrink-0">${l.time}</span>
+      <span class="flex-shrink-0 font-bold" style="color:${colors[l.level]};min-width:42px;">[${l.level}]</span>
+      <span class="text-nexora-400 flex-shrink-0">${l.agent}:</span>
+      <span class="text-gray-300">${l.msg}</span>
+    </div>`).join('');
+}
+function renderUsers() {
+  const roleColors = { 'Super Admin':['rgba(239,68,68,0.15)','#f87171'], 'Operador':['rgba(61,94,255,0.15)','#93b0ff'], 'Viewer':['rgba(34,197,94,0.15)','#4ade80'] };
+  document.getElementById('usersList').innerHTML = users.map(u => {
+    const [bg,color] = roleColors[u.role];
+    return `<div class="flex items-center gap-3 p-3 rounded-lg" style="background:#0d1117;border:1px solid #1e2a45;">
+      <div style="width:34px;height:34px;border-radius:50%;background:${u.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:white;flex-shrink:0;">${u.avatar}</div>
+      <div class="flex-1"><div class="text-sm font-medium text-white">${u.name}</div><div class="text-xs text-gray-500">${u.email}</div></div>
+      <div class="flex items-center gap-2">
+        <span class="badge" style="background:${bg};color:${color};">${u.role}</span>
+        <span class="w-2 h-2 rounded-full" style="background:${u.active?'#4ade80':'#374151'};"></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderReports() {
+  const reports = [
+    { name:'Reporte de Rendimiento — Abril 2025', date:'01 May 2025', size:'2.4 MB', type:'PDF' },
+    { name:'Análisis de Errores — Semana 18', date:'28 Abr 2025', size:'0.8 MB', type:'PDF' },
+    { name:'Uso del Sistema — Q1 2025', date:'01 Abr 2025', size:'3.1 MB', type:'PDF' },
+  ];
+  document.getElementById('reportsList').innerHTML = reports.map(r => `
+    <div class="flex items-center gap-3 p-3 rounded-lg" style="background:#0d1117;border:1px solid #1e2a45;">
+      <div class="p-2 rounded-lg" style="background:rgba(239,68,68,0.15);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div class="flex-1"><div class="text-sm text-white">${r.name}</div><div class="text-xs text-gray-500">${r.date} · ${r.size}</div></div>
+      <button class="text-xs px-3 py-1.5 rounded-lg text-white" style="background:#3d5eff;" onclick="showToast('📥 Descargando ${r.name}...','#4ade80')">Descargar</button>
+    </div>`).join('');
+}
+
+// ══════════════ ACTIONS ══════════════
+function exportPDF() { showToast('📊 Exportando dashboard a PDF...', '#93b0ff'); }
+function exportLogs() { showToast('📋 Exportando logs del sistema...', '#93b0ff'); }
+function generateReport(type) {
+  const names = { performance:'Rendimiento', errors:'Errores', usage:'Uso' };
+  showToast(`📄 Generando reporte de ${names[type]}...`, '#4ade80');
+}
+function openNewAgent() { document.getElementById('newAgentModal').classList.add('open'); }
+function closeModal() { document.getElementById('newAgentModal').classList.remove('open'); }
+function createAgent() {
+  const name = document.getElementById('newAgentName').value || 'Nuevo Agente';
+  closeModal();
+  showToast(`✅ Agente "${name}" creado exitosamente`, '#4ade80');
+}
+function showNotif() { showToast('🔔 3 notificaciones pendientes — 2 warnings, 1 error crítico', '#fbbf24'); }
+
+// ══════════════ TOAST ══════════════
+function showToast(msg, color='#4ade80') {
+  const t = document.getElementById('toast');
+  document.getElementById('toastContent').innerHTML = `<span style="color:${color};">●</span><span class="text-gray-300">${msg}</span>`;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+// ══════════════ DATE ══════════════
+function setDate() {
+  const el = document.getElementById('currentDate');
+  if (el) el.textContent = new Date().toLocaleDateString('es-ES', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+}
+
+// ══════════════ INIT ══════════════
+function initDashboard() {
+  setDate();
+  renderRecentActivity();
+  renderTopAgents();
+  renderAgentsTable();
+  renderLogs();
+  renderUsers();
+  renderReports();
+  setTimeout(initCharts, 100);
+}
+// Auto-login for demo
+window.addEventListener('load', () => {
+  // Show login first (default)
+  setDate();
+});
+</script>
+</body>
+</html>
